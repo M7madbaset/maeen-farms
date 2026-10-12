@@ -1,4 +1,4 @@
-# MAeen FarmOS — vertical slices 1-2 (SIMULATION ONLY)
+# MAeen FarmOS — vertical slices 1-3 (SIMULATION ONLY)
 
 End-to-end **water-shortage workflow**: validate sensor data → deterministic water budget →
 independent review → human approval → policy + safety gateway → simulated valves →
@@ -37,9 +37,17 @@ python -m maeen --workflow anomaly --fault pump_degraded                  # equi
 python -m maeen --workflow anomaly --fault stale_well                     # blocked, no guess
 ```
 
+### Slice 3: daily executive report
+```bash
+python -m maeen --workflow report --out-dir docs/sample_reports --lang ar
+```
+Builds a simulated day (completed plan, pending plan, severe leak, blocked check) and writes
+`daily_report_{en,ar}.{html,txt}` and `daily_report.json`. Sections without a data source
+(crop health, stock, spending, workforce, maintenance, forecast) are listed as unavailable, never estimated.
+
 ## Tests
 ```bash
-PYTHONPATH=src python -m pytest -q      # 79 tests
+PYTHONPATH=src python -m pytest -q      # 87 tests
 ```
 
 ## Troubleshooting

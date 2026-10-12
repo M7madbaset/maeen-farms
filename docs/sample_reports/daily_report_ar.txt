@@ -1,0 +1,43 @@
+التقرير التنفيذي اليومي - معين
+!! بيانات محاكاة - ليست قياسات حقيقية للمزرعة
+
+== نظرة عامة
+  - الوضع: simulation
+  - السيناريو: 40-feddan
+  - وقت الإنشاء: 2026-10-12T01:00:00+00:00
+  - workflows: COMPLETED=1, AWAITING_INSPECTION=1, BLOCKED=1, AWAITING_APPROVAL=1
+== المياه
+  - المياه المسلّمة والمتحقق منها (م³): 900.0
+  - wf-64846796fd: COMPLETED - المتاح 900, الاحتياج 1272, العجز 372
+  - wf-4ab8ed10db: BLOCKED (blocked_insufficient_data)
+  - wf-5aba430f6f: AWAITING_APPROVAL - المتاح 900, الاحتياج 1272, العجز 372
+== استثناءات الري
+  - an-9fda24081c: AWAITING_INSPECTION - leak_upstream_of_valve (severe, 70%) safe-close=verified
+== قرارات معلقة
+  - an-9fda24081c: inspection_confirmation
+  - wf-5aba430f6f: plan_approval
+== التنبيهات
+  - high: 3
+  - info: 1
+  - critical: 2
+  - [critical] [محاكاة] تسرب محتمل قبل المحبس V-B1: 56% من التدفق غير محسوب والضغط منخفض. يلزم فحص الخط.
+  - [critical] [محاكاة] الوضع الآمن: تم إغلاق المحبس V-B1 والتحقق منه.
+== الحوكمة والتدقيق
+  - approvals granted/denied: 1/0
+  - commands denied: 0
+  - safe-close ok/failed: 1/0
+  - أحداث التدقيق: 43
+  - سلسلة التدقيق سليمة: نعم
+== أقسام بلا مصدر بيانات
+  - crop_observations: Palm Health agent not implemented
+  - stock_alerts: Procurement & Inventory agent not implemented
+  - spending_vs_budget: Finance agent not implemented
+  - workforce_status: Workforce agent not implemented
+  - maintenance_status: Equipment & Maintenance agent not implemented
+  - production_forecast: Yield Forecasting agent not implemented
+== الافتراضات (غير معتمدة)
+  - Kc values are illustrative placeholders, not validated for Minya Medjool.
+  - Demand is area-based (ETc x area); palm-canopy/age effects are not yet modelled.
+  - Leaching requirement uses the FAO-29 style LR=ECw/(5*ECe-ECw), unvalidated.
+  - Block priorities and minimum fractions are illustrative; agronomist must set them.
+  - Palms per feddan = 50 (planning assumption, configurable per block).

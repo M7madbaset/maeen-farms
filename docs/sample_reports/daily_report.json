@@ -1,0 +1,130 @@
+{
+  "meta": {
+    "generated_at": "2026-10-12T01:00:00+00:00",
+    "mode": "simulation",
+    "scenario": "40-feddan",
+    "simulated": true,
+    "parameters_validated": false,
+    "assumptions": [
+      "Kc values are illustrative placeholders, not validated for Minya Medjool.",
+      "Demand is area-based (ETc x area); palm-canopy/age effects are not yet modelled.",
+      "Leaching requirement uses the FAO-29 style LR=ECw/(5*ECe-ECw), unvalidated.",
+      "Block priorities and minimum fractions are illustrative; agronomist must set them.",
+      "Palms per feddan = 50 (planning assumption, configurable per block)."
+    ]
+  },
+  "workflows": {
+    "total": 4,
+    "by_state": {
+      "COMPLETED": 1,
+      "AWAITING_INSPECTION": 1,
+      "BLOCKED": 1,
+      "AWAITING_APPROVAL": 1
+    }
+  },
+  "water": {
+    "plans": [
+      {
+        "id": "wf-64846796fd",
+        "state": "COMPLETED",
+        "available_m3": 900.0,
+        "demand_m3": 1271.8321709558827,
+        "shortage_m3": 371.8321709558827,
+        "verified_delivered_m3": 900.0,
+        "blocked_reason": null
+      },
+      {
+        "id": "wf-4ab8ed10db",
+        "state": "BLOCKED",
+        "available_m3": null,
+        "demand_m3": null,
+        "shortage_m3": null,
+        "verified_delivered_m3": 0,
+        "blocked_reason": "blocked_insufficient_data"
+      },
+      {
+        "id": "wf-5aba430f6f",
+        "state": "AWAITING_APPROVAL",
+        "available_m3": 900.0,
+        "demand_m3": 1271.8321709558827,
+        "shortage_m3": 371.8321709558827,
+        "verified_delivered_m3": 0,
+        "blocked_reason": null
+      }
+    ],
+    "verified_delivered_m3": 900.0,
+    "unverified_or_failed_commands": 0
+  },
+  "irrigation_exceptions": [
+    {
+      "id": "an-9fda24081c",
+      "state": "AWAITING_INSPECTION",
+      "classification": "leak_upstream_of_valve",
+      "severity": "severe",
+      "confidence": 0.7,
+      "safe_state": "verified",
+      "blocked_reason": null
+    }
+  ],
+  "pending_decisions": [
+    {
+      "id": "an-9fda24081c",
+      "kind": "inspection_confirmation"
+    },
+    {
+      "id": "wf-5aba430f6f",
+      "kind": "plan_approval",
+      "actions": 4,
+      "shortage_m3": 371.8321709558827
+    }
+  ],
+  "alerts": {
+    "by_severity": {
+      "high": 3,
+      "info": 1,
+      "critical": 2
+    },
+    "critical": [
+      {
+        "severity": "critical",
+        "text_en": "[SIMULATED] Probable LEAK upstream of V-B1: 56% of flow unaccounted, pressure low. Inspect the line.",
+        "text_ar": "[محاكاة] تسرب محتمل قبل المحبس V-B1: 56% من التدفق غير محسوب والضغط منخفض. يلزم فحص الخط.",
+        "simulated": 1
+      },
+      {
+        "severity": "critical",
+        "text_en": "[SIMULATED] Safe state: valve V-B1 closed and verified.",
+        "text_ar": "[محاكاة] الوضع الآمن: تم إغلاق المحبس V-B1 والتحقق منه.",
+        "simulated": 1
+      }
+    ]
+  },
+  "governance": {
+    "approvals_granted": 1,
+    "approvals_denied": 0,
+    "commands_denied": 0,
+    "safe_close_events": 1,
+    "safe_close_failures": 0
+  },
+  "anomaly_quality": {
+    "confirmed_cases": 0,
+    "pending_confirmation": 1,
+    "accuracy": null,
+    "false_alarm_rate": null,
+    "by_family": {},
+    "note": "Small samples; not statistically meaningful until many cases are confirmed."
+  },
+  "audit": {
+    "events": 43,
+    "chain_intact": true,
+    "first_bad_event": null
+  },
+  "not_available": {
+    "crop_observations": "Palm Health agent not implemented",
+    "stock_alerts": "Procurement & Inventory agent not implemented",
+    "spending_vs_budget": "Finance agent not implemented",
+    "workforce_status": "Workforce agent not implemented",
+    "maintenance_status": "Equipment & Maintenance agent not implemented",
+    "production_forecast": "Yield Forecasting agent not implemented"
+  }
+}

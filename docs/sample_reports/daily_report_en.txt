@@ -1,0 +1,43 @@
+MAeen Daily Executive Report
+!! SIMULATED DATA - not real farm measurements
+
+== Overview
+  - Mode: simulation
+  - Scenario: 40-feddan
+  - Generated: 2026-10-12T01:00:00+00:00
+  - workflows: COMPLETED=1, AWAITING_INSPECTION=1, BLOCKED=1, AWAITING_APPROVAL=1
+== Water
+  - Verified water delivered (m3): 900.0
+  - wf-64846796fd: COMPLETED - available 900, demand 1272, shortage 372
+  - wf-4ab8ed10db: BLOCKED (blocked_insufficient_data)
+  - wf-5aba430f6f: AWAITING_APPROVAL - available 900, demand 1272, shortage 372
+== Irrigation exceptions
+  - an-9fda24081c: AWAITING_INSPECTION - leak_upstream_of_valve (severe, 70%) safe-close=verified
+== Pending decisions
+  - an-9fda24081c: inspection_confirmation
+  - wf-5aba430f6f: plan_approval
+== Alerts
+  - high: 3
+  - info: 1
+  - critical: 2
+  - [critical] [SIMULATED] Probable LEAK upstream of V-B1: 56% of flow unaccounted, pressure low. Inspect the line.
+  - [critical] [SIMULATED] Safe state: valve V-B1 closed and verified.
+== Governance & audit
+  - approvals granted/denied: 1/0
+  - commands denied: 0
+  - safe-close ok/failed: 1/0
+  - Audit events: 43
+  - Audit chain intact: yes
+== Sections without a data source
+  - crop_observations: Palm Health agent not implemented
+  - stock_alerts: Procurement & Inventory agent not implemented
+  - spending_vs_budget: Finance agent not implemented
+  - workforce_status: Workforce agent not implemented
+  - maintenance_status: Equipment & Maintenance agent not implemented
+  - production_forecast: Yield Forecasting agent not implemented
+== Assumptions (unvalidated)
+  - Kc values are illustrative placeholders, not validated for Minya Medjool.
+  - Demand is area-based (ETc x area); palm-canopy/age effects are not yet modelled.
+  - Leaching requirement uses the FAO-29 style LR=ECw/(5*ECe-ECw), unvalidated.
+  - Block priorities and minimum fractions are illustrative; agronomist must set them.
+  - Palms per feddan = 50 (planning assumption, configurable per block).

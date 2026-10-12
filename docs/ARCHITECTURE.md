@@ -115,7 +115,8 @@ Classifications are hypotheses; a human with role operator/agronomist/owner conf
 | REST API, MQTT, event bus, edge gateway, offline sync | **Not implemented** |
 | Dashboards, mobile UI | **Not implemented** |
 | Workflow C (irrigation anomaly): classification, verified autonomous safe-close, human-confirmed outcomes, evaluation | **Implemented (slice 2), simulated; thresholds unvalidated** |
-| Workflows A, D–K | **Not implemented** |
+| Workflow K (daily executive report): JSON + EN/AR text + RTL-safe, HTML-escaped HTML; sample in `docs/sample_reports/` | **Implemented (slice 3)**, covers only data that exists; 6 sections declared 'no data source' |
+| Workflows A, D, E, F, G, H, I, J | **Not implemented** |
 | Real hardware, controlled mode | **Not possible**: denied unless a commissioned real adapter exists (none) |
 | Docker, CI, lint | **Not implemented** |
 

@@ -10,11 +10,12 @@ def main(argv=None) -> int:
     ap.add_argument("--scenario", choices=["40", "142"], default="40")
     ap.add_argument("--mode", choices=["simulation", "advisory", "controlled"], default="simulation")
     ap.add_argument("--well-flow", type=float, default=45.0, help="simulated well output m3/h")
-    ap.add_argument("--workflow", choices=["water", "anomaly"], default="water")
+    ap.add_argument("--workflow", choices=["water", "anomaly", "report"], default="water")
     ap.add_argument("--fault", choices=["none", "stale_well", "meter_mismatch", "valve_stuck", "pump_fault",
                                         "leak", "leak_severe", "leak_downstream", "flow_sensor_bias",
                                         "pump_degraded", "filter_clogged", "severe_leak_valve_stuck_open"],
                     default="none")
+    ap.add_argument("--out-dir", help="report workflow: write daily_report_{en,ar}.html/.txt/.json here")
     ap.add_argument("--confirm", choices=["leak_confirmed", "sensor_fault_confirmed",
                                           "equipment_fault_confirmed", "false_alarm"],
                     help="anomaly workflow: human confirms the outcome (as --approver)")
@@ -32,6 +33,8 @@ def main(argv=None) -> int:
     orch = Orchestrator(rt)
     if a.workflow == "anomaly":
         return _anomaly_demo(a, rt, orch)
+    if a.workflow == "report":
+        return _report_demo(a, rt, orch)
     print(f"== MAeen FarmOS | scenario={rt.cfg.scenario} | mode={a.mode} | ALL DATA SIMULATED ==")
     wf = orch.start_water_shortage("evt-demo-001")
     print(f"[1] workflow {wf['id']} -> {wf['state']}")
@@ -48,6 +51,29 @@ def main(argv=None) -> int:
     print(f"\nAudit events: {len(rt.audit.trail())} | hash chain intact: {ok}")
     for n in rt.db.execute("SELECT severity,text_en,text_ar FROM notification"):
         print(f"  [{n['severity']}] {n['text_en'] if a.lang=='en' else n['text_ar']}")
+    return 0
+
+
+def _report_demo(a, rt, orch) -> int:
+    """Builds a realistic SIMULATED day, then renders the daily executive report."""
+    import json, os
+    from .daily_report import build_daily_report, render_text, render_html
+    w1 = orch.start_water_shortage("evt-sample-1"); orch.approve(w1["id"], "owner1")   # completed
+    orch.start_water_shortage("evt-sample-2")                                           # left pending
+    rt.sim.open_valve = "V-B1"; rt.sim.inject("leak", "25")
+    orch.start_irrigation_anomaly("evt-sample-3", "V-B1", min(150.0, a.well_flow))      # severe leak
+    rt.sim.inject("stale_sensor", "well_flow_m3h")
+    orch.start_water_shortage("evt-sample-4")                                           # blocked
+    rep = build_daily_report(rt)
+    print(render_text(rep, a.lang))
+    if a.out_dir:
+        os.makedirs(a.out_dir, exist_ok=True)
+        for lang in ("en", "ar"):
+            for ext, txt in (("html", render_html(rep, lang)), ("txt", render_text(rep, lang))):
+                open(os.path.join(a.out_dir, f"daily_report_{lang}.{ext}"), "w", encoding="utf-8").write(txt)
+        open(os.path.join(a.out_dir, "daily_report.json"), "w", encoding="utf-8").write(
+            json.dumps(rep, indent=2, ensure_ascii=False))
+        print(f"\nwritten to {a.out_dir}")
     return 0
 
 
