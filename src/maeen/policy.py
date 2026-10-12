@@ -18,6 +18,8 @@ ACTIONS = {
     "close_valve_safe_state": Rule("autonomous"),   # only moves toward safe state
     "request_valve_command": Rule("approval_required", frozenset({"owner", "agronomist"})),
     "apply_fertilizer": Rule("approval_required", frozenset({"agronomist", "owner"})),
+    "confirm_anomaly_outcome": Rule("approval_required",
+                                    frozenset({"irrigation_operator", "agronomist", "owner"})),
     "create_purchase_request": Rule("approval_required", frozenset({"owner", "finance_officer"})),
     # never available to agents, regardless of approval:
     "commit_purchase": Rule("prohibited"),

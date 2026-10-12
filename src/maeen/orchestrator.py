@@ -4,6 +4,7 @@ import hashlib, json, uuid
 from datetime import timedelta
 from .agents.farm_manager import FarmManagerAgent
 from .agents.irrigation import IrrigationWaterAgent
+from .agents.anomaly import IrrigationAnomalyAgent
 from .agents.registry import validate_output, SchemaError
 from .models import Approval, DeviceCommand
 from .policy import fingerprint
@@ -21,13 +22,13 @@ class Orchestrator:
         row = self.rt.db.execute("SELECT * FROM workflow WHERE id=?", (wid,)).fetchone()
         return None if row is None else {"id": row["id"], "state": row["state"], **json.loads(row["data"])}
 
-    def _save(self, wid, state, data, new=False, event_id=None):
+    def _save(self, wid, state, data, new=False, event_id=None, wtype="water_shortage"):
         now = self.rt.clock.now().isoformat()
         d = {k: v for k, v in data.items() if k not in ("id", "state")}
         d.setdefault("history", []).append([state, now])
         if new:
             self.rt.db.execute("INSERT INTO workflow VALUES (?,?,?,?,?,?,?)",
-                               (wid, "water_shortage", event_id, state, json.dumps(d, default=str), now, now))
+                               (wid, wtype, event_id, state, json.dumps(d, default=str), now, now))
         else:
             self.rt.db.execute("UPDATE workflow SET state=?, data=?, updated_at=? WHERE id=?",
                                (state, json.dumps(d, default=str), now, wid))
@@ -158,3 +159,98 @@ class Orchestrator:
             return {**(wf or {}), "error": "cannot reject"}
         self.rt.audit.append(user_id, "plan_rejected", wid, {"reason": reason})
         return self._save(wid, "REJECTED", wf)
+
+
+# ---------------------------------------------------------------------------
+# Workflow C: irrigation anomaly
+# ---------------------------------------------------------------------------
+ANOMALY_TEXT = {   # class -> (EN, AR)
+    "leak_upstream_of_valve": ("Probable LEAK upstream of {v}: {loss:.0%} of flow unaccounted, pressure low. Inspect the line.",
+                               "تسرب محتمل قبل المحبس {v}: {loss:.0%} من التدفق غير محسوب والضغط منخفض. يلزم فحص الخط."),
+    "leak_downstream": ("Probable break DOWNSTREAM of {v}: flow above expected with low pressure. Inspect drip lines.",
+                        "كسر محتمل بعد المحبس {v}: التدفق أعلى من المتوقع مع ضغط منخفض. افحص خطوط التنقيط."),
+    "sensor_fault_or_minor_leak": ("Valve {v} flow reading disagrees with well/meter but pressure is normal: sensor fault or minor leak. Inspect and calibrate.",
+                                   "قراءة تدفق المحبس {v} تخالف البئر/العداد مع ضغط طبيعي: عطل حساس أو تسرب بسيط. افحص وعاير."),
+    "sensor_fault_main_meter": ("Main meter disagrees with well flow and valve flow: probable meter fault. Calibrate.",
+                                "العداد الرئيسي يخالف تدفق البئر والمحبس: عطل محتمل في العداد. يلزم المعايرة."),
+    "sensor_fault_well_flow": ("Well flow sensor disagrees with meter and valve flow: probable sensor fault. Calibrate.",
+                               "حساس تدفق البئر يخالف العداد والمحبس: عطل محتمل. يلزم المعايرة."),
+    "equipment_pump_or_supply": ("Low flow with low pressure: pump degradation or supply shortfall. Maintenance work order recommended.",
+                                 "تدفق وضغط منخفضان: تدهور المضخة أو نقص الإمداد. يوصى بأمر صيانة."),
+    "equipment_filter_or_blockage": ("Low flow with HIGH pressure: filter clogging or blockage. Maintenance work order recommended.",
+                                     "تدفق منخفض مع ضغط مرتفع: انسداد فلتر أو خط. يوصى بأمر صيانة."),
+}
+DEFAULT_ANOMALY_TEXT = ("Irrigation anomaly '{cls}' on {v}: inconclusive, inspect.",
+                        "شذوذ في الري '{cls}' على {v}: غير حاسم، يلزم الفحص.")
+CONFIRMABLE = ("leak_confirmed", "sensor_fault_confirmed", "equipment_fault_confirmed", "false_alarm")
+
+
+def _start_anomaly(self, event_id: str, valve_id: str, expected_flow_m3h: float) -> dict:
+    rt = self.rt
+    row = rt.db.execute("SELECT id FROM workflow WHERE event_id=?", (event_id,)).fetchone()
+    if row:
+        rt.audit.append("orchestrator", "duplicate_event_ignored", row["id"], {"event_id": event_id})
+        return {**self.load(row["id"]), "duplicate": True}
+    wid = "an-" + hashlib.sha256(event_id.encode()).hexdigest()[:10]
+    wf = self._save(wid, "DETECTING", {"mode": rt.mode, "simulated": True, "valve_id": valve_id,
+                                        "expected_flow_m3h": expected_flow_m3h},
+                    new=True, event_id=event_id, wtype="irrigation_anomaly")
+    agent = IrrigationAnomalyAgent()
+    try:
+        out = self._run_agent(wid, lambda: agent.run(rt, wid, {"valve_id": valve_id,
+                                                               "expected_flow_m3h": expected_flow_m3h}), agent.spec)
+    except RuntimeError as e:
+        self._notify(wid, "irrigation_operator", "high", f"Anomaly detection failed: {e}", f"فشل كشف الشذوذ: {e}")
+        return self._save(wid, "FAILED", {**wf, "error": str(e)})
+    wf["plan"] = out
+    if out["status"] != "ok":
+        self._notify(wid, "irrigation_operator,agronomist", "high",
+                     f"Anomaly check blocked: {out['status']}. {'; '.join(out['warnings'])}",
+                     f"تعذر فحص الشذوذ: {out['status']}. بيانات القياس غير صالحة؛ يلزم فحص ميداني.")
+        return self._save(wid, "BLOCKED", wf)
+    d = out["data"]; cls = d["classification"]
+    rt.db.execute("INSERT INTO anomaly_case(workflow_id,predicted,confidence,ts) VALUES (?,?,?,?)",
+                  (wid, cls, out["confidence"], rt.clock.now().isoformat()))
+    rt.db.commit()
+    if cls == "normal":
+        return self._save(wid, "COMPLETED_NO_ACTION", wf)
+    en, ar = ANOMALY_TEXT.get(cls, DEFAULT_ANOMALY_TEXT)
+    fmt = {"v": valve_id, "loss": d["analysis"]["loss_fraction"], "cls": cls}
+    sev = "critical" if d["severity"] == "severe" else "high"
+    self._notify(wid, "irrigation_operator,agronomist", sev, en.format(**fmt), ar.format(**fmt))
+    safe = [a for a in out["proposed_actions"] if a["action"] == "close_valve_safe_state"]
+    if safe:
+        res = rt.gateway.safe_close(agent.spec.agent_id, safe[0]["device_id"], wid, safe[0]["reason"])
+        wf["safe_state"] = {"status": res.status, "verified": res.verified, "detail": res.detail}
+        if res.status == "failed_verification":
+            self._notify(wid, "owner,irrigation_operator", "critical",
+                         f"Valve {valve_id} did NOT close. Stop the pump / use manual or hardware shut-off NOW.",
+                         f"المحبس {valve_id} لم يُغلق. أوقف المضخة أو استخدم الإغلاق اليدوي/الهيدروليكي فورًا.")
+            return self._save(wid, "ESCALATED_CRITICAL", wf)
+        if res.verified:
+            self._notify(wid, "owner,irrigation_operator", "critical",
+                         f"Safe state: valve {valve_id} closed and verified.", f"الوضع الآمن: تم إغلاق المحبس {valve_id} والتحقق منه.")
+    return self._save(wid, "AWAITING_INSPECTION", wf)
+
+
+def _resolve_anomaly(self, wid: str, user_id: str, outcome: str, note: str = "") -> dict:
+    rt = self.rt
+    wf = self.load(wid)
+    if wf is None or wf["state"] != "AWAITING_INSPECTION":
+        return {**(wf or {}), "error": "workflow not awaiting inspection"}
+    if outcome not in CONFIRMABLE:
+        return {**wf, "error": f"outcome must be one of {CONFIRMABLE}"}
+    dec = rt.policy.validate_approver(user_id, "confirm_anomaly_outcome")
+    if not dec.allowed:
+        rt.audit.append(user_id, "outcome_denied", wid, {"code": dec.code})
+        return {**wf, "error": f"denied: {dec.code}"}
+    rt.db.execute("UPDATE anomaly_case SET confirmed=?, confirmed_by=?, note=?, confirmed_ts=? WHERE workflow_id=?",
+                  (outcome, user_id, note, rt.clock.now().isoformat(), wid))
+    rt.db.commit()
+    rt.audit.append(user_id, "human_confirmed_outcome", wid, {"outcome": outcome, "note": note})
+    wf["confirmed_outcome"] = outcome
+    return self._save(wid, "RESOLVED", wf)
+
+
+Orchestrator.start_irrigation_anomaly = _start_anomaly
+Orchestrator.resolve_anomaly = _resolve_anomaly

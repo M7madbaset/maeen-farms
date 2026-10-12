@@ -43,7 +43,7 @@ hardware protects itself (dry-run, pressure, e-stop, fail-closed valves) with no
 |---|---|---|
 | 0 | Farm Orchestrator | **Partial** — water-shortage state machine only; no generic planner |
 | 1 | Farm Manager / Decision Intelligence | **Partial** — independent plan reviewer only |
-| 2 | Irrigation & Water | **Partial** — validation, demand, allocation, plan (deterministic); no leak/anomaly detection |
+| 2 | Irrigation & Water | **Partial** — validation, demand, allocation, plan; **anomaly classification (slice 2)** as least-privilege identity `irrigation_anomaly` |
 | 3 | Soil & Fertigation · 4 Palm Health · 5 Agronomy · 6 Yield · 7 Workforce · 8 Equipment · 9 Procurement · 10 Harvest/Traceability · 11 Finance · 12 Sales · 13 Compliance · 14 Risk · 15 Knowledge/Reporting | **Not implemented** (contract stub for Palm Health used in negative tests) |
 
 Common contract (implemented): agent_id, version, objective, tools, data scopes, timeout/retry,
@@ -78,6 +78,25 @@ COMPLETED  (verified vs telemetry)   |  COMPLETED_ADVISORY (human acts; outcome 
 Sensor rules: stale (>`max_data_age_s`), missing, out-of-range, and well-vs-meter contradiction
 all block planning; values are never substituted.
 
+## 5b. Irrigation-anomaly workflow (C) — implemented in slice 2
+
+Uses three redundant flow estimates (well W, main meter M, valve flow F), pressure P and expected flow E.
+
+| Pattern | Classification | Action |
+|---|---|---|
+| W≈M≈F≈E, P normal | normal | none |
+| W≈M, F low, loss ≥ 10 %, P low | leak upstream of valve | alert; **loss ≥ 40 % → autonomous safe-close, verified by telemetry** |
+| W≈M, F low, P normal | sensor fault *or* minor leak (ambiguity stated) | alert + inspect |
+| M deviates, W≈F | main-meter fault | alert + calibrate |
+| W deviates, M≈F | well-sensor fault | alert + calibrate |
+| all agree, high flow, P low | downstream break | alert (no autonomous action) |
+| all agree, low flow, P low / high | pump-supply / filter-blockage | alert + maintenance recommendation |
+| missing/stale/invalid input | BLOCKED | alert; **no classification** |
+
+Safe-close failing verification (valve stuck open) → `ESCALATED_CRITICAL` with a hardware shut-off instruction.
+Classifications are hypotheses; a human with role operator/agronomist/owner confirms the outcome, and
+`evaluation.py` computes accuracy and false-alarm rate from **confirmed outcomes only**.
+
 ## 6. Implementation status
 
 | Capability | Status |
@@ -95,14 +114,15 @@ all block planning; values are never substituted.
 | PostgreSQL/PostGIS/Timescale schema (full model §6), migrations | **Not implemented** (minimal SQLite tables only) |
 | REST API, MQTT, event bus, edge gateway, offline sync | **Not implemented** |
 | Dashboards, mobile UI | **Not implemented** |
-| Workflows A, C–K | **Not implemented** |
+| Workflow C (irrigation anomaly): classification, verified autonomous safe-close, human-confirmed outcomes, evaluation | **Implemented (slice 2), simulated; thresholds unvalidated** |
+| Workflows A, D–K | **Not implemented** |
 | Real hardware, controlled mode | **Not possible**: denied unless a commissioned real adapter exists (none) |
 | Docker, CI, lint | **Not implemented** |
 
 ## 7. Prioritised backlog
 
 1. **Persistence/API (Phase 1):** Postgres+PostGIS+Timescale schema & Alembic migrations (full entity list), FastAPI, real authn (OIDC), secrets handling. *Effort: needs sizing by the team.*
-2. **Workflow C (irrigation anomaly)** — reuses validation + simulator; add leak vs sensor-fault classifier with backtests.
+2. ~~Workflow C (irrigation anomaly)~~ — **done in slice 2** (rules only; backtesting on real data still required).
 3. **Workflow A (daily plan)** + read-only dashboard (AR/EN, RTL).
 4. **Temporal** migration of the orchestrator; enforce agent timeouts; LLM client interface with schema-constrained output and prompt-injection tests on untrusted inputs.
 5. Palm Health agent + case tracking (D), Knowledge/RAG with approved-SOP gating.

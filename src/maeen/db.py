@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS device_command (
 CREATE TABLE IF NOT EXISTS notification (
   id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, workflow_id TEXT, audience TEXT,
   severity TEXT, text_en TEXT, text_ar TEXT, simulated INTEGER);
+CREATE TABLE IF NOT EXISTS anomaly_case (
+  workflow_id TEXT PRIMARY KEY, predicted TEXT, confidence REAL, confirmed TEXT,
+  confirmed_by TEXT, note TEXT, ts TEXT, confirmed_ts TEXT);
 CREATE TABLE IF NOT EXISTS agent_execution (
   id TEXT PRIMARY KEY, agent_id TEXT, agent_version TEXT, correlation_id TEXT,
   status TEXT, output TEXT, ts TEXT);

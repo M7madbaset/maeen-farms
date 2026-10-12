@@ -124,3 +124,33 @@ class ToolGateway:
                         cmd.workflow_id, res.detail)
         self._store(cmd, res)
         return res
+
+    # ------------------------------------------------------------------
+    def safe_close(self, agent_id: str, valve_id: str, workflow_id: str, reason: str) -> CommandResult:
+        """Move a valve to the safe (closed) state. Autonomous by policy, but still gated by
+        tool grant, mode and commissioning, and always VERIFIED against telemetry."""
+        rt, cfg = self.rt, self.rt.cfg
+        d = rt.policy.authorize(agent_id, "close_valve_safe_state")
+        if not d.allowed:
+            rt.audit.append(agent_id, "safe_close_denied", workflow_id, {"code": d.code})
+            return CommandResult("denied", False, True, {"code": d.code, "reason": d.reason})
+        if valve_id not in cfg.valve_ids():
+            return CommandResult("denied", False, True, {"code": "unknown_device"})
+        if rt.mode == "advisory":
+            rt.audit.append(agent_id, "advisory_recorded", workflow_id,
+                            {"action": "close_valve", "device": valve_id, "reason": reason})
+            return CommandResult("advisory_recorded", False, True,
+                                 {"note": "advisory mode: operator must close the valve manually"})
+        if rt.mode == "controlled" and (rt.sim.is_simulated or valve_id not in cfg.commissioned_valves):
+            return CommandResult("denied", False, True, {"code": "not_commissioned"})
+        hw = rt.sim.command(valve_id, "close_valve")
+        rt.audit.append("safety_layer", "device_command_sent", workflow_id,
+                        {"device": valve_id, "action": "close_valve", "reason": reason,
+                         "hw": hw, "simulated": True})
+        flow = rt.sim.read(f"flow:{valve_id}")
+        closed = bool(hw.get("ok")) and flow is not None and flow.value <= 0.05
+        res = CommandResult("verified" if closed else "failed_verification", closed, True,
+                            {"hw": hw, "flow_after_m3h": None if flow is None else flow.value})
+        rt.audit.append("safety_layer", "safe_close_verified" if closed else "safe_close_FAILED",
+                        workflow_id, res.detail)
+        return res

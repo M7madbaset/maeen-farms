@@ -48,11 +48,15 @@ class FarmConfig:
     command_ttl_s: int = 900
     approval_ttl_s: int = 3600
     min_well_flow_m3h: float = 0.5
+    pressure_band_bar: tuple = (2.0, 3.5)      # normal operating band (PLACEHOLDER, commission on site)
+    anomaly_flow_tol: float = 0.15             # flow-estimate agreement / deviation from expected
+    leak_loss_warn: float = 0.10               # unaccounted-flow fraction that raises an alert
+    leak_loss_severe: float = 0.40             # fraction that triggers autonomous safe-close
     parameters_validated: bool = False
     commissioned_valves: frozenset = frozenset()   # none until Phase 5
     sensor_ranges: dict = field(default_factory=lambda: {
         "well_flow_m3h": (0.0, 500.0), "main_meter_m3h": (0.0, 500.0),
-        "eto_mm_day": (0.0, 15.0), "flow:": (0.0, 500.0), "volume_m3:": (0.0, 1e7)})
+        "eto_mm_day": (0.0, 15.0), "pressure_bar": (0.0, 20.0), "flow:": (0.0, 500.0), "volume_m3:": (0.0, 1e7)})
     assumptions: tuple = (
         "Kc values are illustrative placeholders, not validated for Minya Medjool.",
         "Demand is area-based (ETc x area); palm-canopy/age effects are not yet modelled.",

@@ -1,4 +1,4 @@
-# MAeen FarmOS — vertical slice 1 (SIMULATION ONLY)
+# MAeen FarmOS — vertical slices 1-2 (SIMULATION ONLY)
 
 End-to-end **water-shortage workflow**: validate sensor data → deterministic water budget →
 independent review → human approval → policy + safety gateway → simulated valves →
@@ -27,9 +27,19 @@ python -m maeen --fault pump_fault                # no well output, blocked
 python -m maeen --mode advisory                   # escalates: simulated evidence not allowed outside simulation
 ```
 
+### Slice 2: irrigation anomaly workflow
+```bash
+python -m maeen --workflow anomaly --fault leak_severe                    # autonomous verified safe-close
+python -m maeen --workflow anomaly --fault severe_leak_valve_stuck_open   # close fails -> critical escalation
+python -m maeen --workflow anomaly --fault leak --confirm leak_confirmed  # human confirms (as owner1)
+python -m maeen --workflow anomaly --fault flow_sensor_bias --lang ar     # sensor fault, Arabic
+python -m maeen --workflow anomaly --fault pump_degraded                  # equipment
+python -m maeen --workflow anomaly --fault stale_well                     # blocked, no guess
+```
+
 ## Tests
 ```bash
-PYTHONPATH=src python -m pytest -q      # 59 tests
+PYTHONPATH=src python -m pytest -q      # 79 tests
 ```
 
 ## Troubleshooting

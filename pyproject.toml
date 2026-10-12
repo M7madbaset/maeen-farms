@@ -1,6 +1,6 @@
 [project]
 name = "maeen-farmos"
-version = "0.1.0"
+version = "0.2.0"
 description = "MAeen FarmOS - vertical slice 1 (water shortage workflow, simulation mode)"
 requires-python = ">=3.10"
 dependencies = []          # slice 1 is stdlib-only by design

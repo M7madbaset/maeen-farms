@@ -30,3 +30,32 @@ def explain(wf: dict, lang: str = "en") -> str:
         f"5) Confidence: {p['confidence']:.0%}; warnings: {'; '.join(p['warnings']) or 'none'}",
         f"6) Approval required: {'yes' if p['requires_approval'] else 'no'}",
         f"7) Outcome: {out}"])
+
+
+def explain_anomaly(wf: dict, lang: str = "en") -> str:
+    p = wf.get("plan") or {}
+    d = p.get("data")
+    ar = lang == "ar"
+    if not d:
+        return ("لا يوجد تصنيف." if ar else "No classification.") + " " + "; ".join(p.get("warnings", []))
+    a = d["analysis"]
+    ev = ", ".join(f"{e['sensor_id']}={e['value']:.2f}{e['unit']}" for e in p["evidence"])
+    ss = wf.get("safe_state")
+    outcome = (ss["status"] if ss else ("-" if not wf.get("confirmed_outcome") else wf["confirmed_outcome"]))
+    if ar:
+        return "\n".join([
+            f"1) الملاحظة: المتوقع {a['E']:.1f} م³/س، البئر {a['W']:.1f}، العداد {a['M']:.1f}، المحبس {a['F']:.1f}، الضغط {a['P']:.2f} بار.",
+            f"2) الأدلة: {ev}",
+            f"3) التصنيف: {d['classification']} (الخطورة {d['severity']})؛ بدائل: {', '.join(a['alternatives']) or 'لا يوجد'}",
+            "4) الفائدة/المخاطر: كشف مبكر يقلل الفاقد؛ احتمال إنذار كاذب قائم.",
+            f"5) الثقة: {p['confidence']:.0%} — فرضية تحتاج تأكيدًا ميدانيًا.",
+            "6) الموافقة: الإغلاق الآمن تلقائي ومُتحقَّق منه؛ أي إجراء آخر يتطلب قرارًا بشريًا.",
+            f"7) النتيجة: {outcome}"])
+    return "\n".join([
+        f"1) Observed: expected {a['E']:.1f} m3/h; well {a['W']:.1f}, meter {a['M']:.1f}, valve {a['F']:.1f}, pressure {a['P']:.2f} bar.",
+        f"2) Evidence: {ev}",
+        f"3) Classification: {d['classification']} (severity {d['severity']}); alternatives: {', '.join(a['alternatives']) or 'none'}",
+        "4) Benefit / downside: early detection limits water loss; false alarms remain possible.",
+        f"5) Confidence: {p['confidence']:.0%} - a hypothesis requiring field confirmation.",
+        "6) Approval: safe-close is autonomous and verified; any other action needs a human decision.",
+        f"7) Outcome: {outcome}"])

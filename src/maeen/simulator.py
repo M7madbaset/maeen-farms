@@ -30,6 +30,12 @@ class FarmSimulator:
         self.stuck_closed: set = set()
         self.meter_factor = 1.0
         self.pump_fault = False
+        self.leak = 0.0              # m3/h lost upstream of the valve flow sensor
+        self.leak_down = 0.0         # extra m3/h drawn by a break downstream of the valve
+        self.pump_factor = 1.0       # <1 => degraded pump
+        self.clog_factor = 1.0       # <1 => clogged filter
+        self.sensor_bias: dict = {}  # sensor_id -> multiplicative reading error (physics unchanged)
+        self.stuck_open: set = set()
 
     # --- fault injection -------------------------------------------------
     def inject(self, fault: str, target: str | None = None):
@@ -38,17 +44,34 @@ class FarmSimulator:
         elif fault == "valve_stuck_closed": self.stuck_closed.add(target)
         elif fault == "meter_mismatch": self.meter_factor = float(target)
         elif fault == "pump_fault": self.pump_fault = True
+        elif fault == "leak": self.leak = float(target)
+        elif fault == "leak_downstream": self.leak_down = float(target)
+        elif fault == "pump_degraded": self.pump_factor = float(target)
+        elif fault == "filter_clogged": self.clog_factor = float(target)
+        elif fault == "sensor_bias": self.sensor_bias[target[0]] = float(target[1])
+        elif fault == "valve_stuck_open": self.stuck_open.add(target)
         else: raise ValueError(f"unknown fault {fault}")
 
     # --- telemetry -------------------------------------------------------
     def _well(self) -> float:
-        return 0.0 if self.pump_fault else self.well_flow
+        if self.pump_fault:
+            return 0.0
+        extra = self.leak_down if self.open_valve else 0.0
+        return self.well_flow * self.pump_factor * self.clog_factor + extra
+
+    def _pressure(self) -> float:
+        if self.pump_fault:
+            return 0.0
+        p = 2.5
+        if self.pump_factor < 1: p = 1.2
+        if self.clog_factor < 1: p = 4.2
+        return max(0.0, p - 0.05 * (self.leak + self.leak_down))
 
     def _valve_flow(self, valve: str) -> float:
         if self.open_valve != valve or valve in self.stuck_closed:
             return 0.0
         rated = next(b.rated_flow_m3h for b in self.cfg.blocks if b.valve_id == valve)
-        return min(rated, self._well())
+        return max(0.0, min(rated, self._well()) - self.leak)
 
     def read(self, sensor_id: str) -> Reading | None:
         if sensor_id in self.offline:
@@ -56,7 +79,9 @@ class FarmSimulator:
         if sensor_id == "well_flow_m3h": v, u = self._well(), "m3/h"
         elif sensor_id == "main_meter_m3h": v, u = self._well() * self.meter_factor, "m3/h"
         elif sensor_id == "eto_mm_day": v, u = self.eto, "mm/day"
-        elif sensor_id.startswith("flow:"): v, u = self._valve_flow(sensor_id[5:]), "m3/h"
+        elif sensor_id == "pressure_bar": v, u = self._pressure(), "bar"
+        elif sensor_id.startswith("flow:"):
+            v, u = self._valve_flow(sensor_id[5:]) * self.sensor_bias.get(sensor_id, 1.0), "m3/h"
         elif sensor_id.startswith("volume_m3:"): v, u = self.delivered[sensor_id[10:]], "m3"
         else: raise KeyError(sensor_id)
         ts = self.clock.now() - (timedelta(hours=1) if sensor_id in self.stale else timedelta(0))
@@ -67,6 +92,8 @@ class FarmSimulator:
         if device_id not in self.delivered:
             return {"ok": False, "reason": "unknown_device"}
         if action == "close_valve":
+            if device_id in self.stuck_open:        # actuator accepts command, valve physically stays open
+                return {"ok": True, "state": "closed_commanded"}
             self.open_valve = None
             return {"ok": True, "state": "closed"}
         if action != "run_valve_timed":

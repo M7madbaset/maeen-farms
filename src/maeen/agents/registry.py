@@ -20,6 +20,11 @@ SPECS = {
         "Validate water data, compute demand/allocation, propose an irrigation plan.",
         frozenset({"read_telemetry", "create_recommendation", "request_valve_command"}),
         frozenset({"telemetry", "farm_config"})),
+    "irrigation_anomaly": AgentSpec(     # capability of catalog agent #2, least-privilege identity
+        "irrigation_anomaly", "0.1.0",
+        "Detect and classify irrigation flow/pressure anomalies; safe-close on severe leak.",
+        frozenset({"read_telemetry", "create_recommendation", "close_valve_safe_state"}),
+        frozenset({"telemetry", "farm_config"})),
     "farm_manager": AgentSpec(
         "farm_manager", "0.1.0",
         "Independently review high-impact plans against invariants.",
