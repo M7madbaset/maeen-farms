@@ -1,0 +1,21 @@
+# Copy to .github/workflows/tests.yml (needs a token with the `workflow` scope, or add via the GitHub web UI).
+name: tests
+on: [push, pull_request]
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pytest pglast "psycopg[binary]"
+      - run: PYTHONPATH=src python -m pytest -q
+        env:
+          MAEEN_TEST_PG_ADMIN_DSN: host=localhost port=5432 user=postgres password=postgres dbname=postgres

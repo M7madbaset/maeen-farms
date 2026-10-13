@@ -1,0 +1,16 @@
+# UNTESTED in the build sandbox (no Docker available there). Local development only.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: maeen
+      POSTGRES_USER: maeen
+      POSTGRES_PASSWORD: ${MAEEN_DB_PASSWORD:?set MAEEN_DB_PASSWORD in your shell or .env}
+    ports: ["127.0.0.1:5432:5432"]       # bound to localhost only
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maeen -d maeen"]
+      interval: 5s
+      retries: 10
+volumes:
+  pgdata:

@@ -27,7 +27,7 @@ hardware protects itself (dry-run, pressure, e-stop, fail-closed valves) with no
 |---|---|---|---|
 | Language/API | Python 3.12 + FastAPI | Node/NestJS, Go | Best agronomy/ML/LLM ecosystem; one team skill set. Slower raw throughput — irrelevant at farm scale. |
 | Operational DB | PostgreSQL 16 + PostGIS | MySQL, MongoDB | Relational integrity for approvals/finance + geospatial blocks/palms. Needs backups/DBA habits. |
-| Time series | TimescaleDB (extension on same PG) | InfluxDB, plain PG | One engine to operate/back up; continuous aggregates. Revisit if >10⁴ sensors. |
+| Time series | **Native PostgreSQL range partitioning** (implemented, slice 4); TimescaleDB deferred | TimescaleDB, InfluxDB | Same engine, no extra extension to operate. TimescaleDB could not be validated in my environment, so it is not claimed; revisit for compression/continuous aggregates if sensor volume grows. |
 | Workflows | Temporal (durable execution) | Celery, LangGraph-only, Airflow | Retries, timers, human-approval signals, replay. Heavier to run; worth it for physical ops. LangGraph may live *inside* agent steps. |
 | Messaging | MQTT (Mosquitto/EMQX) at edge + NATS or Postgres-outbox centrally | Kafka, RabbitMQ | Low-bandwidth, intermittent links. Kafka is overkill here. |
 | Objects | MinIO (S3 API) | Cloud S3 only | Works on the farm LAN; sync to cloud. |
@@ -97,6 +97,27 @@ Safe-close failing verification (valve stuck open) → `ESCALATED_CRITICAL` with
 Classifications are hypotheses; a human with role operator/agronomist/owner confirms the outcome, and
 `evaluation.py` computes accuracy and false-alarm rate from **confirmed outcomes only**.
 
+## 5c. Data model (slice 4) — `db/migrations/001..007`
+
+PostgreSQL 16 + PostGIS 3.4, 61 application tables, forward-only checksummed migrations (`python -m maeen.pgmigrate`).
+Verified by 23 live-database tests and 11 static SQL tests.
+
+* **Provenance is enforced by the schema:** domains `data_origin_t` (raw / derived / model prediction / human-confirmed /
+  AI recommendation / configuration) and `quality_status_t`; every observation-like table has `is_simulated NOT NULL`.
+  `recommendation.origin` can only be `ai_recommendation`; `harvest_forecast` only `model_prediction`.
+* **Integrity rules in the database (defence in depth, not just app code):** missing readings must be recorded as
+  `missing` (no invented values); verified results need measurements; fertigation/irrigation plans cannot be
+  approved/executing without an approval row; non-safe-state device commands need an approval; real (non-simulated) commands are
+  rejected for equipment that is not `commissioned`; simulated data cannot sit in a controlled-mode plan; purchase
+  approver ≠ requester and committer ≠ approver; policy activator ≠ author; SOP approver ≠ author; confirmed pest
+  diagnoses and anomaly outcomes must name a human; posted costs and confirmed orders must name a human.
+* **Audit:** `audit_event` is hash-chained **inside PostgreSQL** (trigger, advisory-lock-serialised, timezone-independent
+  hash), blocks UPDATE/DELETE/TRUNCATE, and `verify_audit_chain()` returns the first tampered row. Tested with 4 concurrent
+  writers and with a privileged attacker disabling the trigger. External anchoring of the chain head is still not implemented.
+* **Geo:** farm boundary, block polygons, palm points, equipment/sensor/zone geometry, all GiST-indexed. One row per palm.
+* **Time series:** `sensor_reading` partitioned by month (`ensure_sensor_reading_partition`) with a default partition.
+* The running application (slices 1-3) **still uses SQLite**; no repository layer maps the workflows to PostgreSQL yet.
+
 ## 6. Implementation status
 
 | Capability | Status |
@@ -111,7 +132,8 @@ Classifications are hypotheses; a human with role operator/agronomist/owner conf
 | Agent timeouts | Declared, **not enforced** |
 | LLM integration / RAG / prompts | **Not implemented** (slice is fully deterministic) |
 | Authentication (real), secrets, TLS | **Not implemented** (CLI trusts user id) |
-| PostgreSQL/PostGIS/Timescale schema (full model §6), migrations | **Not implemented** (minimal SQLite tables only) |
+| PostgreSQL/PostGIS schema for the full entity list + migrations + live tests | **Implemented (slice 4)**; not yet wired to the application (slices 1-3 use SQLite) |
+| Vector store (pgvector) / RAG tables, model registry, retention & backup policy | **Not implemented** |
 | REST API, MQTT, event bus, edge gateway, offline sync | **Not implemented** |
 | Dashboards, mobile UI | **Not implemented** |
 | Workflow C (irrigation anomaly): classification, verified autonomous safe-close, human-confirmed outcomes, evaluation | **Implemented (slice 2), simulated; thresholds unvalidated** |
@@ -122,7 +144,7 @@ Classifications are hypotheses; a human with role operator/agronomist/owner conf
 
 ## 7. Prioritised backlog
 
-1. **Persistence/API (Phase 1):** Postgres+PostGIS+Timescale schema & Alembic migrations (full entity list), FastAPI, real authn (OIDC), secrets handling. *Effort: needs sizing by the team.*
+1. **Persistence/API (Phase 1):** ~~Postgres/PostGIS schema + migrations~~ — **done in slice 4**. Remaining: repository layer moving workflows from SQLite to PostgreSQL, FastAPI, real authn (OIDC), secrets handling. *Effort: needs sizing by the team.*
 2. ~~Workflow C (irrigation anomaly)~~ — **done in slice 2** (rules only; backtesting on real data still required).
 3. **Workflow A (daily plan)** + read-only dashboard (AR/EN, RTL).
 4. **Temporal** migration of the orchestrator; enforce agent timeouts; LLM client interface with schema-constrained output and prompt-injection tests on untrusted inputs.

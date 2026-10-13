@@ -1,4 +1,4 @@
-# MAeen FarmOS — vertical slices 1-3 (SIMULATION ONLY)
+# MAeen FarmOS — vertical slices 1-4 (SIMULATION ONLY)
 
 End-to-end **water-shortage workflow**: validate sensor data → deterministic water budget →
 independent review → human approval → policy + safety gateway → simulated valves →
@@ -45,9 +45,24 @@ Builds a simulated day (completed plan, pending plan, severe leak, blocked check
 `daily_report_{en,ar}.{html,txt}` and `daily_report.json`. Sections without a data source
 (crop health, stock, spending, workforce, maintenance, forecast) are listed as unavailable, never estimated.
 
+### Slice 4: PostgreSQL/PostGIS data model
+```bash
+docker compose up -d db                                 # UNTESTED compose file (no Docker in my build sandbox)
+pip install "psycopg[binary]" pglast
+export MAEEN_DATABASE_URL="host=localhost port=5432 user=maeen password=YOUR_PASSWORD dbname=maeen"
+python -m maeen.pgmigrate --seed                        # applies db/migrations/*.sql, then DEV-ONLY seed
+```
+Run the live database tests (creates and drops a throw-away database):
+```bash
+MAEEN_TEST_PG_ADMIN_DSN="host=localhost port=5432 user=maeen password=YOUR_PASSWORD dbname=postgres" \
+  PYTHONPATH=src python -m pytest -q                    # 121 tests
+```
+Migrations are forward-only and checksummed; editing an applied migration is rejected. Requires PostgreSQL >= 15 + PostGIS.
+CI template with a PostGIS service container: `docs/ci/tests.yml` (copy to `.github/workflows/`).
+
 ## Tests
 ```bash
-PYTHONPATH=src python -m pytest -q      # 87 tests
+PYTHONPATH=src python -m pytest -q      # 98 pass, 23 skip unless a PostgreSQL test DSN is set
 ```
 
 ## Troubleshooting
