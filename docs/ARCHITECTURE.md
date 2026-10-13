@@ -99,7 +99,7 @@ Classifications are hypotheses; a human with role operator/agronomist/owner conf
 
 ## 5c. Data model (slice 4) — `db/migrations/001..007`
 
-PostgreSQL 16 + PostGIS 3.4, 61 application tables, forward-only checksummed migrations (`python -m maeen.pgmigrate`).
+PostgreSQL 16 + PostGIS 3.4, 62 application tables, forward-only checksummed migrations (`python -m maeen.pgmigrate`).
 Verified by 23 live-database tests and 11 static SQL tests.
 
 * **Provenance is enforced by the schema:** domains `data_origin_t` (raw / derived / model prediction / human-confirmed /
