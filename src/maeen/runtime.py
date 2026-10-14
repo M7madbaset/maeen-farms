@@ -30,7 +30,7 @@ def build_runtime(scenario="40", mode=C.SIMULATION, db_path=":memory:",
     db = connect(db_path)
     rt = Runtime(cfg, db, clock, FarmSimulator(cfg, clock, well_flow, eto),
                  AuditLog(db, clock), None, None, mode)
-    rt.policy = Policy(SPECS, users or C.USERS, clock)
+    rt.policy = Policy(SPECS, users if users is not None else C.USERS, clock)
     rt.gateway = ToolGateway(rt)
     rt.audit.append("system", "runtime_started", None,
                     {"mode": mode, "scenario": cfg.scenario, "simulated_data": True})

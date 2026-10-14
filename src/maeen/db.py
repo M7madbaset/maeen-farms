@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS notification (
 CREATE TABLE IF NOT EXISTS anomaly_case (
   workflow_id TEXT PRIMARY KEY, predicted TEXT, confidence REAL, confirmed TEXT,
   confirmed_by TEXT, note TEXT, ts TEXT, confirmed_ts TEXT);
+CREATE TABLE IF NOT EXISTS api_user (
+  username TEXT PRIMARY KEY, password_hash TEXT NOT NULL, roles TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1, created_at TEXT);
 CREATE TABLE IF NOT EXISTS agent_execution (
   id TEXT PRIMARY KEY, agent_id TEXT, agent_version TEXT, correlation_id TEXT,
   status TEXT, output TEXT, ts TEXT);
@@ -32,7 +35,7 @@ CREATE TABLE IF NOT EXISTS agent_execution (
 
 
 def connect(path: str = ":memory:") -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+    conn = sqlite3.connect(path, check_same_thread=False)   # API serialises access with a lock
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn

@@ -118,6 +118,25 @@ Verified by 23 live-database tests and 11 static SQL tests.
 * **Time series:** `sensor_reading` partitioned by month (`ensure_sensor_reading_partition`) with a default partition.
 * The running application (slices 1-3) **still uses SQLite**; no repository layer maps the workflows to PostgreSQL yet.
 
+## 5d. API and authentication (slice 5)
+
+FastAPI service over the slice 1-3 workflows (`python -m maeen.serve`, spec in `docs/openapi.json`).
+
+* Authentication: scrypt password hashes (salted, cost stored per hash), HS256 tokens (algorithm pinned, 32+ char secret
+  enforced, 15 min TTL), per-user login lockout (5 failures / 5 min), identical error for unknown user vs wrong password.
+* Authorization: **roles are read from the database on every request**, never from the token, so revoking a role or
+  deactivating a user is immediate. Writes are role-gated; approvals/confirmations are decided by the policy engine, and the
+  acting user is always the authenticated user (a spoofed `user_id` in a request body is ignored/rejected).
+* Every route except `/health` and `/auth/login` requires a token (enforced by a test that walks all routes).
+* Strict request models (unknown fields rejected, bounded lengths/ranges, allow-listed fault inputs), `nosniff`/`no-store`
+  headers, CSP on the HTML report, docs endpoints off by default, forbidden/denied/login events written to the audit chain.
+* Simulator fault injection: `admin` only and only in simulation mode.
+
+Known gaps (not implemented): TLS (run behind a reverse proxy), refresh/revocation list, MFA, password reset and user
+administration endpoints (users are created in code/CLI), per-IP and global rate limiting (the login limiter is per
+username, in memory, single process), multi-process deployment (one process, one lock, SQLite), CORS policy (none set),
+real IdP/OIDC. The simulated clock is used for domain timestamps.
+
 ## 6. Implementation status
 
 | Capability | Status |
@@ -131,10 +150,11 @@ Verified by 23 live-database tests and 11 static SQL tests.
 | AR/EN notifications and 7-part explanation | Implemented (templates) |
 | Agent timeouts | Declared, **not enforced** |
 | LLM integration / RAG / prompts | **Not implemented** (slice is fully deterministic) |
-| Authentication (real), secrets, TLS | **Not implemented** (CLI trusts user id) |
+| Authentication (password + token), role-gated REST API, strict validation, audit of denials | **Implemented (slice 5)** - see §5d for gaps |
+| TLS, OIDC/IdP, MFA, secrets manager, rate limiting beyond login lockout | **Not implemented** |
 | PostgreSQL/PostGIS schema for the full entity list + migrations + live tests | **Implemented (slice 4)**; not yet wired to the application (slices 1-3 use SQLite) |
 | Vector store (pgvector) / RAG tables, model registry, retention & backup policy | **Not implemented** |
-| REST API, MQTT, event bus, edge gateway, offline sync | **Not implemented** |
+| MQTT, event bus, edge gateway, offline sync | **Not implemented** |
 | Dashboards, mobile UI | **Not implemented** |
 | Workflow C (irrigation anomaly): classification, verified autonomous safe-close, human-confirmed outcomes, evaluation | **Implemented (slice 2), simulated; thresholds unvalidated** |
 | Workflow K (daily executive report): JSON + EN/AR text + RTL-safe, HTML-escaped HTML; sample in `docs/sample_reports/` | **Implemented (slice 3)**, covers only data that exists; 6 sections declared 'no data source' |

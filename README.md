@@ -1,4 +1,4 @@
-# MAeen FarmOS — vertical slices 1-4 (SIMULATION ONLY)
+# MAeen FarmOS — vertical slices 1-5 (SIMULATION ONLY)
 
 End-to-end **water-shortage workflow**: validate sensor data → deterministic water budget →
 independent review → human approval → policy + safety gateway → simulated valves →
@@ -60,9 +60,25 @@ MAEEN_TEST_PG_ADMIN_DSN="host=localhost port=5432 user=maeen password=YOUR_PASSW
 Migrations are forward-only and checksummed; editing an applied migration is rejected. Requires PostgreSQL >= 15 + PostGIS.
 CI template with a PostGIS service container: `docs/ci/tests.yml` (copy to `.github/workflows/`).
 
+### Slice 5: authenticated REST API
+```bash
+pip install fastapi uvicorn pyjwt httpx
+export MAEEN_JWT_SECRET=$(openssl rand -hex 32)
+export MAEEN_DEV_USERS_PASSWORD='choose-a-dev-only-password'     # DEV ONLY users: owner1 agro1 op1 aud1 fin1 admin1
+python -m maeen.serve                                            # http://127.0.0.1:8000 (simulation only)
+
+TOKEN=$(curl -s -X POST localhost:8000/auth/login -H 'content-type: application/json' \
+  -d '{"username":"owner1","password":"choose-a-dev-only-password"}' | python -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+curl -s -X POST localhost:8000/workflows/water-shortage -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/json' -d '{"event_id":"evt-1"}'          # -> AWAITING_APPROVAL
+curl -s -X POST localhost:8000/workflows/<id>/approve -H "Authorization: Bearer $TOKEN"
+curl -s localhost:8000/audit/verify -H "Authorization: Bearer $TOKEN"
+```
+Spec: `docs/openapi.json` (regenerate: `python -m maeen.export_openapi docs/openapi.json`). Interactive docs are off unless `MAEEN_ENABLE_DOCS=1`.
+
 ## Tests
 ```bash
-PYTHONPATH=src python -m pytest -q      # 98 pass, 23 skip unless a PostgreSQL test DSN is set
+PYTHONPATH=src python -m pytest -q      # 159 with PostgreSQL + API deps; DB tests skip without a DSN
 ```
 
 ## Troubleshooting
